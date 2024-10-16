@@ -1,0 +1,24 @@
+{
+  "name": "magisim-api",
+  "version": "1.0.0",
+  "description": "mongodb magi simsimi",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "chatbot",
+    "express",
+    "mongodb",
+    "translation",
+    "math"
+  ],
+  "author": "Høpeléss Máhî",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "mongoose": "^7.3.4"
+  }
+}
