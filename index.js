@@ -8,7 +8,7 @@ const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-const mongoURI = 'mongodb+srv://user 2000:test123@cluster0.e6is4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const mongoURI = 'mongodb+srv://user2000:test123@cluster0.e6is4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connected...'))
   .catch(err => console.log('MongoDB connection error:', err));
