@@ -8,6 +8,7 @@ const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
+// MongoDB connection
 const mongoURI = 'mongodb+srv://user2000:test123@cluster0.e6is4.mongodb.net/chatbotDB?retryWrites=true&w=majority&appName=Cluster0';
 mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connected...'))
@@ -17,6 +18,7 @@ mongoose.connection.on('error', (err) => {
   console.log('MongoDB connection error:', err);
 });
 
+// Schema for Chat responses
 const chatSchema = new mongoose.Schema({
   input: { type: String, unique: true, required: true },
   responses: { type: [String], default: [] }
@@ -24,6 +26,7 @@ const chatSchema = new mongoose.Schema({
 
 const Chat = mongoose.model('Chat', chatSchema);
 
+// Translation function using Google Translate API
 async function translateAPI(text, lang) {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
 
@@ -48,105 +51,56 @@ async function samirtranslate(text, lang = 'en') {
   return translateAPI(text, lang);
 }
 
-function evaluateMath(expression) {
-  try {
-    expression = expression.replace(/[^\d+\-*/().^√]/g, '');
-    expression = expression.replace(/\^/g, '**').replace(/√([^)]+)/g, 'Math.sqrt($1)');
-    const result = eval(expression);
-    return result !== undefined ? result.toString() : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function chooseRandomly(input) {
-  const regex = /choose between\s+(.+?)\s+and\s+(.+)/i;
-  const match = input.match(regex);
-
-  if (match && match.length === 3) {
-    const option1 = match[1].trim();
-    const option2 = match[2].trim();
-    const choices = [option1, option2];
-    const randomChoice = choices[Math.floor(Math.random() * choices.length)];
-    return `I choose ${randomChoice}.`;
-  } else {
-    return 'Please provide a valid format: "choose between name1 and name2".';
-  }
-}
-
-function getDateTimeInfo(query) {
-  const now = new Date();
-
-  if (/current date|what is the date|date/i.test(query)) {
-    return `The current date is ${now.toLocaleDateString()}.`;
-  }
-
-  if (/what time is it|current time|time/i.test(query)) {
-    return `The current time is ${now.toLocaleTimeString()}.`;
-  }
-
-  if (/time in bangladesh/i.test(query)) {
-    const bangladeshTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-    return `The current time in Bangladesh is ${bangladeshTime.toLocaleTimeString()}.`;
-  }
-
-  return null;
-}
-
+// Main chat endpoint
 app.post('/chat', async (req, res) => {
   const { input, lang = 'en' } = req.body;
 
   const normalizedInput = input.toLowerCase();
-  const mathResult = evaluateMath(normalizedInput);
-  const randomChoiceResult = chooseRandomly(normalizedInput);
-  const dateTimeResult = getDateTimeInfo(normalizedInput);
 
-  if (dateTimeResult) {
-    const translatedResponse = await samirtranslate(dateTimeResult, lang);
-    return res.send({ response: translatedResponse });
-  }
+  console.log('User input received:', normalizedInput); // Debugging log
 
-  if (mathResult !== null) {
-    const mathExpression = normalizedInput.replace(/[^0-9+\-*/().^√]/g, '');
-    const formattedResponse = `The equation of ${mathExpression} would be ${mathResult}.`;
-    const translatedResponse = await samirtranslate(formattedResponse, lang);
-    return res.send({ response: translatedResponse });
-  }
-
-  if (randomChoiceResult !== 'Please provide a valid format: "choose between name1 and name2".') {
-    const translatedResponse = await samirtranslate(randomChoiceResult, lang);
-    return res.send({ response: translatedResponse });
-  }
-
+  // Search for input in the database
   Chat.findOne({ input: normalizedInput }, async (err, chat) => {
     if (err) {
+      console.log('Error finding input in DB:', err); // Debugging log
       return res.status(500).send({ error: 'Database error' });
     }
 
     if (chat) {
+      console.log('Chat found in DB:', chat); // Debugging log
+
       if (chat.responses.length > 0) {
+        // Pick a random response
         const randomResponse = chat.responses[Math.floor(Math.random() * chat.responses.length)];
         const translatedResponse = await samirtranslate(randomResponse, lang);
+
+        console.log('Response sent:', translatedResponse); // Debugging log
         return res.send({ response: translatedResponse });
       } else {
         const defaultResponse = `I don't know about "${input}", but I'll learn!`;
         return res.send({ response: defaultResponse });
       }
     } else {
+      console.log('Chat not found in DB, input:', normalizedInput); // Debugging log
+
       const defaultResponse = `I don't know about "${input}", but I'll learn!`;
       return res.send({ response: defaultResponse });
     }
   });
 });
 
+// Admin route to add response
 app.post('/tech', async (req, res) => {
   const { input, response, lang = 'en' } = req.body;
 
   const normalizedInput = input.toLowerCase();
   const translatedResponse = await samirtranslate(response, 'en');
 
+  console.log('Admin adding response:', translatedResponse); // Debugging log
+
   Chat.findOne({ input: normalizedInput }, (err, chat) => {
     if (err) {
+      console.log('Error finding input in DB:', err); // Debugging log
       return res.status(500).send({ error: 'Database error' });
     }
 
@@ -155,8 +109,10 @@ app.post('/tech', async (req, res) => {
         chat.responses.push(translatedResponse);
         chat.save((err) => {
           if (err) {
+            console.log('Error saving chat in DB:', err); // Debugging log
             return res.status(500).send({ error: 'Database error' });
           }
+          console.log(`Response added: "${response}" for input "${input}"`); // Debugging log
           return res.send({ message: `Response added: "${response}"` });
         });
       } else {
@@ -166,61 +122,17 @@ app.post('/tech', async (req, res) => {
       const newChat = new Chat({ input: normalizedInput, responses: [translatedResponse] });
       newChat.save((err) => {
         if (err) {
+          console.log('Error saving new chat in DB:', err); // Debugging log
           return res.status(500).send({ error: 'Database error' });
         }
+        console.log(`New response added: "${response}" for input "${input}"`); // Debugging log
         return res.send({ message: `Response added: "${response}"` });
       });
     }
   });
 });
 
-app.delete('/delete', async (req, res) => {
-  const { input, response, lang = 'en' } = req.body;
-
-  const normalizedInput = input.toLowerCase();
-
-  const translatedInput = await samirtranslate(normalizedInput, 'en');
-
-  Chat.findOne({ input: translatedInput }, (err, chat) => {
-    if (err) {
-      return res.status(500).send({ error: 'Database error' });
-    }
-
-    if (chat) {
-      if (response) {
-        samirtranslate(response, 'en').then(translatedResponse => {
-          chat.responses = chat.responses.filter(res => res !== translatedResponse);
-
-          if (chat.responses.length > 0) {
-            chat.save((err) => {
-              if (err) {
-                return res.status(500).send({ error: 'Database error' });
-              }
-              return res.send({ message: `Response "${response}" deleted from input "${input}"` });
-            });
-          } else {
-            Chat.deleteOne({ input: translatedInput }, (err) => {
-              if (err) {
-                return res.status(500).send({ error: 'Database error' });
-              }
-              return res.send({ message: `No more responses left for input "${input}", entry deleted` });
-            });
-          }
-        });
-      } else {
-        Chat.deleteOne({ input: translatedInput }, (err) => {
-          if (err) {
-            return res.status(500).send({ error: 'Database error' });
-          }
-          return res.send({ message: `All responses for input "${input}" deleted` });
-        });
-      }
-    } else {
-      return res.send({ message: `No chat found with input: "${input}"` });
-    }
-  });
-});
-
+// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
